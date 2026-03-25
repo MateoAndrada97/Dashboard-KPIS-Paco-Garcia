@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+:root {
+  --pg-deep: #00483b;
+  --pg-green: #028436;
+  --pg-mint: #8bc8a3;
+  --pg-light: #e8e8e8;
+  --pg-charcoal: #202124;
+  --pg-white: #ffffff;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--pg-light);
+  color: var(--pg-charcoal);
+  font-family: "Helvetica Neue", "Helvetica Neue LT Std", Arial, sans-serif;
+}
+
+.pg-display {
+  font-family: "Helvetica Neue", "Helvetica Neue LT Std", Arial, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.pg-body {
+  font-family: "Helvetica Neue", "Helvetica Neue LT Std", Arial, sans-serif;
+}
+
+.pg-surface {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(10px);
+}
+
+.pg-card {
+  background: var(--pg-white);
+  border: 1px solid rgba(0, 72, 59, 0.08);
+  box-shadow: 0 12px 30px rgba(0, 72, 59, 0.06);
+}
+
+.pg-pattern {
+  position: relative;
+  overflow: hidden;
+}
+
+.pg-pattern::after {
+  content: "";
+  position: absolute;
+  inset: auto -10% -30% auto;
+  width: 260px;
+  height: 260px;
+  opacity: 0.12;
+  background-image:
+    repeating-linear-gradient(
+      -55deg,
+      transparent 0 12px,
+      rgba(2, 132, 54, 0.8) 12px 20px
+    );
+  pointer-events: none;
+}
+
+.pg-pattern-soft {
+  position: relative;
+  overflow: hidden;
+}
+
+.pg-pattern-soft::after {
+  content: "";
+  position: absolute;
+  right: -40px;
+  bottom: -60px;
+  width: 180px;
+  height: 180px;
+  opacity: 0.12;
+  background-image:
+    repeating-linear-gradient(
+      -55deg,
+      transparent 0 10px,
+      rgba(2, 132, 54, 0.7) 10px 16px
+    );
+  pointer-events: none;
+}
+
+.pg-hero {
+  background:
+    linear-gradient(135deg, rgba(0, 72, 59, 0.96), rgba(0, 72, 59, 0.88)),
+    radial-gradient(circle at top right, rgba(139, 200, 163, 0.28), transparent 35%);
+  color: white;
+}
+
+.pg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pg-input,
+.pg-select {
+  border: 1px solid rgba(0, 72, 59, 0.16);
+  background: white;
+  color: var(--pg-charcoal);
+}
+
+.pg-input:focus,
+.pg-select:focus {
+  outline: none;
+  border-color: var(--pg-green);
+  box-shadow: 0 0 0 3px rgba(2, 132, 54, 0.14);
+}
+
+.pg-title {
+  color: var(--pg-deep);
+}
+
+.pg-subtle {
+  color: rgba(32, 33, 36, 0.68);
+}

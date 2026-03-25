@@ -1,0 +1,80 @@
+export const mockData = {
+  salesDaily: [
+    { date: "01 Mar", revenue: 182000, orders: 74, avgTicket: 2459 },
+    { date: "02 Mar", revenue: 165500, orders: 68, avgTicket: 2434 },
+    { date: "03 Mar", revenue: 191200, orders: 81, avgTicket: 2360 },
+    { date: "04 Mar", revenue: 205900, orders: 86, avgTicket: 2394 },
+  ],
+  products: [
+    {
+      id: 1,
+      name: "Café Latte",
+      category: "Bebidas",
+      units: 120,
+      revenue: 360000,
+      marginPct: 68,
+      stock: "OK",
+    },
+    {
+      id: 2,
+      name: "Capuccino",
+      category: "Bebidas",
+      units: 95,
+      revenue: 285000,
+      marginPct: 64,
+      stock: "OK",
+    },
+    {
+      id: 3,
+      name: "Medialunas",
+      category: "Panadería",
+      units: 150,
+      revenue: 180000,
+      marginPct: 55,
+      stock: "Bajo",
+    },
+  ],
+  customers: [
+    { segment: "Frecuentes", value: 20 },
+    { segment: "Nuevos", value: 10 },
+    { segment: "VIP", value: 4 },
+    { segment: "Ocasionales", value: 8 },
+  ],
+  monthlyFinance: [
+    {
+      month: "Ene",
+      revenue: 1200000,
+      costs: 480000,
+      grossProfit: 720000,
+      netProfit: 350000,
+    },
+    {
+      month: "Feb",
+      revenue: 1400000,
+      costs: 550000,
+      grossProfit: 850000,
+      netProfit: 420000,
+    },
+    {
+      month: "Mar",
+      revenue: 1600000,
+      costs: 620000,
+      grossProfit: 980000,
+      netProfit: 500000,
+    },
+  ],
+  topClients: [
+    {
+      name: "Juan Pérez",
+      visits: 5,
+      spend: 45000,
+      lastPurchase: "2026-03-25",
+    },
+    {
+      name: "María López",
+      visits: 4,
+      spend: 38000,
+      lastPurchase: "2026-03-24",
+    },
+  ],
+};
