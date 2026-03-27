@@ -22,6 +22,23 @@ function parseBody(req) {
 export default async function handler(req, res) {
   if (req.method === "GET") {
     try {
+      const { history } = req.query;
+
+      if (history === "1") {
+        const { data, error } = await supabase
+          .from("dashboard_reports")
+          .select("id, report_name, uploaded_by, uploaded_at, is_active")
+          .order("uploaded_at", { ascending: false })
+          .limit(30);
+
+        if (error) {
+          console.error("Error obteniendo historial:", error);
+          return res.status(500).json({ error: "No se pudo obtener el historial." });
+        }
+
+        return res.status(200).json({ reports: data || [] });
+      }
+
       const { data, error } = await supabase
         .from("dashboard_reports")
         .select("id, report_name, uploaded_by, report_data, uploaded_at, is_active")
@@ -86,6 +103,44 @@ export default async function handler(req, res) {
     }
   }
 
-  res.setHeader("Allow", ["GET", "POST"]);
+  if (req.method === "PATCH") {
+    try {
+      const body = parseBody(req);
+      const { reportId } = body || {};
+
+      if (!reportId) {
+        return res.status(400).json({ error: "Falta reportId." });
+      }
+
+      const { error: deactivateError } = await supabase
+        .from("dashboard_reports")
+        .update({ is_active: false })
+        .eq("is_active", true);
+
+      if (deactivateError) {
+        console.error("Error desactivando reporte actual:", deactivateError);
+        return res.status(500).json({ error: "No se pudo desactivar el reporte actual." });
+      }
+
+      const { data, error: activateError } = await supabase
+        .from("dashboard_reports")
+        .update({ is_active: true })
+        .eq("id", reportId)
+        .select("id, report_name, uploaded_by, report_data, uploaded_at, is_active")
+        .single();
+
+      if (activateError) {
+        console.error("Error reactivando reporte:", activateError);
+        return res.status(500).json({ error: "No se pudo reactivar el reporte." });
+      }
+
+      return res.status(200).json({ ok: true, report: data });
+    } catch (error) {
+      console.error("Error inesperado en PATCH /api/report:", error);
+      return res.status(500).json({ error: "Error interno del servidor." });
+    }
+  }
+
+  res.setHeader("Allow", ["GET", "POST", "PATCH"]);
   return res.status(405).json({ error: "Method not allowed" });
 }

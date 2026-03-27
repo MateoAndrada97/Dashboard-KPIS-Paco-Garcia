@@ -26,8 +26,20 @@ function formatMonthKey(monthKey) {
   return `${month}/${year}`;
 }
 
+function formatDateTime(value) {
+  if (!value) return "Sin fecha";
+  return new Intl.DateTimeFormat("es-AR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 export default function Dashboard() {
   const [baseData, setBaseData] = useState(null);
+  const [activeReport, setActiveReport] = useState(null);
+  const [reportHistory, setReportHistory] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSwitchingReport, setIsSwitchingReport] = useState(false);
 
   const [filters, setFilters] = useState({
     status: "all",
@@ -39,31 +51,79 @@ export default function Dashboard() {
     paymentMethod: "all",
   });
 
+  const loadActiveReport = async () => {
+    const response = await fetch("/api/report", {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error("No se pudo obtener el reporte activo.");
+    }
+
+    const payload = await response.json();
+
+    if (payload?.report?.report_data) {
+      setBaseData(payload.report.report_data);
+      setActiveReport(payload.report);
+    } else {
+      setBaseData(null);
+      setActiveReport(null);
+    }
+  };
+
+  const loadReportHistory = async () => {
+    const response = await fetch("/api/report?history=1", {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      throw new Error("No se pudo obtener el historial.");
+    }
+
+    const payload = await response.json();
+    setReportHistory(payload?.reports || []);
+  };
+
   useEffect(() => {
     let cancelled = false;
 
-    const loadLatestReport = async () => {
+    const bootstrap = async () => {
       try {
-        const response = await fetch("/api/report", {
-          method: "GET",
-          cache: "no-store",
-        });
+        const [activeResponse, historyResponse] = await Promise.all([
+          fetch("/api/report", { method: "GET", cache: "no-store" }),
+          fetch("/api/report?history=1", { method: "GET", cache: "no-store" }),
+        ]);
 
-        if (!response.ok) {
-          throw new Error("No se pudo obtener el último reporte.");
+        if (!activeResponse.ok) {
+          throw new Error("No se pudo obtener el reporte activo.");
         }
 
-        const payload = await response.json();
-
-        if (!cancelled && payload?.report?.report_data) {
-          setBaseData(payload.report.report_data);
+        if (!historyResponse.ok) {
+          throw new Error("No se pudo obtener el historial.");
         }
+
+        const activePayload = await activeResponse.json();
+        const historyPayload = await historyResponse.json();
+
+        if (cancelled) return;
+
+        if (activePayload?.report?.report_data) {
+          setBaseData(activePayload.report.report_data);
+          setActiveReport(activePayload.report);
+        } else {
+          setBaseData(null);
+          setActiveReport(null);
+        }
+
+        setReportHistory(historyPayload?.reports || []);
       } catch (error) {
-        console.error("Error cargando reporte persistido:", error);
+        console.error("Error cargando reportes:", error);
       }
     };
 
-    loadLatestReport();
+    bootstrap();
 
     return () => {
       cancelled = true;
@@ -74,6 +134,8 @@ export default function Dashboard() {
     if (!file) return;
 
     try {
+      setIsUploading(true);
+
       const rows = await parseVTEXFile(file);
       const adapted = adaptVTEXRows(rows);
 
@@ -93,10 +155,48 @@ export default function Dashboard() {
         throw new Error("No se pudo guardar el reporte en Supabase.");
       }
 
+      const payload = await response.json();
+
       setBaseData(adapted);
+      setActiveReport(payload.report || null);
+      await loadReportHistory();
     } catch (error) {
       console.error("Error procesando o guardando archivo VTEX:", error);
       alert("No se pudo procesar o guardar el archivo CSV.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleActivateReport = async (reportId) => {
+    try {
+      setIsSwitchingReport(true);
+
+      const response = await fetch("/api/report", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reportId }),
+      });
+
+      if (!response.ok) {
+        throw new Error("No se pudo reactivar el reporte.");
+      }
+
+      const payload = await response.json();
+
+      if (payload?.report?.report_data) {
+        setBaseData(payload.report.report_data);
+        setActiveReport(payload.report);
+      }
+
+      await loadReportHistory();
+    } catch (error) {
+      console.error("Error reactivando reporte:", error);
+      alert("No se pudo reactivar el reporte seleccionado.");
+    } finally {
+      setIsSwitchingReport(false);
     }
   };
 
@@ -190,8 +290,52 @@ export default function Dashboard() {
               </p>
             </header>
 
-            <section className="mt-6">
-              <UploadVTEX onFileChange={handleFileChange} />
+            <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+              <div>
+                <UploadVTEX onFileChange={handleFileChange} />
+              </div>
+
+              <div className="pg-card rounded-3xl p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="pg-display text-2xl text-[var(--pg-deep)]">
+                      Gestión de reportes
+                    </h3>
+                    <p className="mt-1 text-sm text-[var(--pg-charcoal)]/65">
+                      Subir un CSV nuevo reemplaza el reporte activo y conserva el historial.
+                    </p>
+                  </div>
+
+                  <span className="rounded-full bg-[var(--pg-light)] px-3 py-1 text-xs font-semibold text-[var(--pg-deep)]">
+                    {isUploading ? "Actualizando..." : "Operativo"}
+                  </span>
+                </div>
+
+                <div className="mt-5 grid gap-3">
+                  <div className="rounded-2xl bg-[var(--pg-light)] p-4">
+                    <p className="text-sm text-[var(--pg-deep)]/70">Reporte activo</p>
+                    <p className="mt-1 font-semibold text-[var(--pg-deep)]">
+                      {activeReport?.report_name || "Sin reporte cargado"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-[var(--pg-light)] p-4">
+                    <p className="text-sm text-[var(--pg-deep)]/70">Última actualización</p>
+                    <p className="mt-1 font-semibold text-[var(--pg-deep)]">
+                      {activeReport?.uploaded_at
+                        ? formatDateTime(activeReport.uploaded_at)
+                        : "Sin fecha"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl bg-[var(--pg-light)] p-4">
+                    <p className="text-sm text-[var(--pg-deep)]/70">Historial disponible</p>
+                    <p className="mt-1 font-semibold text-[var(--pg-deep)]">
+                      {reportHistory.length} reportes
+                    </p>
+                  </div>
+                </div>
+              </div>
             </section>
 
             <section className="mt-6">
@@ -273,6 +417,74 @@ export default function Dashboard() {
                       {formatMonthKey(metrics.previousMonthKey)}
                     </p>
                   </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="mt-6">
+              <div className="pg-card rounded-3xl p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="pg-display text-2xl text-[var(--pg-deep)]">
+                      Historial de reportes
+                    </h3>
+                    <p className="mt-1 text-sm text-[var(--pg-charcoal)]/65">
+                      Cada carga nueva reemplaza el activo, pero el histórico queda disponible.
+                    </p>
+                  </div>
+
+                  <span className="rounded-full bg-[var(--pg-light)] px-3 py-1 text-xs font-semibold text-[var(--pg-deep)]">
+                    {isSwitchingReport ? "Cambiando..." : `${reportHistory.length} guardados`}
+                  </span>
+                </div>
+
+                <div className="mt-5 space-y-3">
+                  {reportHistory.length === 0 ? (
+                    <div className="rounded-2xl bg-[var(--pg-light)] p-4 text-sm text-[var(--pg-charcoal)]/70">
+                      Todavía no hay historial de reportes.
+                    </div>
+                  ) : (
+                    reportHistory.map((report) => (
+                      <div
+                        key={report.id}
+                        className="flex flex-col gap-3 rounded-2xl bg-[var(--pg-light)] p-4 lg:flex-row lg:items-center lg:justify-between"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-[var(--pg-deep)]">
+                              {report.report_name}
+                            </p>
+                            {report.is_active ? (
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                                Activo
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-[var(--pg-charcoal)]/70">
+                                Histórico
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="mt-1 text-sm text-[var(--pg-charcoal)]/65">
+                            Subido: {formatDateTime(report.uploaded_at)}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={report.is_active || isSwitchingReport}
+                          onClick={() => handleActivateReport(report.id)}
+                          className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+                            report.is_active || isSwitchingReport
+                              ? "cursor-not-allowed bg-white text-[var(--pg-charcoal)]/45"
+                              : "bg-[var(--pg-deep)] text-white hover:opacity-90"
+                          }`}
+                        >
+                          {report.is_active ? "En uso" : "Activar reporte"}
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </section>
