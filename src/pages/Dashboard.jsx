@@ -130,25 +130,14 @@ export default function Dashboard() {
       const fromOk = !filters.dateFrom || rawDate >= filters.dateFrom;
       const toOk = !filters.dateTo || rawDate <= filters.dateTo;
 
-      const statusOk =
-        filters.status === "all" || order.status === filters.status;
+      const statusOk = filters.status === "all" || order.status === filters.status;
       const cityOk = filters.city === "all" || order.city === filters.city;
       const stateOk = filters.state === "all" || order.state === filters.state;
-      const courrierOk =
-        filters.courrier === "all" || order.courrier === filters.courrier;
+      const courrierOk = filters.courrier === "all" || order.courrier === filters.courrier;
       const paymentOk =
-        filters.paymentMethod === "all" ||
-        order.paymentMethod === filters.paymentMethod;
+        filters.paymentMethod === "all" || order.paymentMethod === filters.paymentMethod;
 
-      return (
-        fromOk &&
-        toOk &&
-        statusOk &&
-        cityOk &&
-        stateOk &&
-        courrierOk &&
-        paymentOk
-      );
+      return fromOk && toOk && statusOk && cityOk && stateOk && courrierOk && paymentOk;
     });
   }, [baseData, filters]);
 
@@ -161,14 +150,8 @@ export default function Dashboard() {
 
   const metrics = useMemo(() => {
     if (!baseData) {
-      const totalRevenue = mockData.salesDaily.reduce(
-        (acc, item) => acc + item.revenue,
-        0
-      );
-      const totalOrders = mockData.salesDaily.reduce(
-        (acc, item) => acc + item.orders,
-        0
-      );
+      const totalRevenue = mockData.salesDaily.reduce((acc, item) => acc + item.revenue, 0);
+      const totalOrders = mockData.salesDaily.reduce((acc, item) => acc + item.orders, 0);
 
       return {
         totalRevenue,
@@ -203,8 +186,7 @@ export default function Dashboard() {
                 Dashboard ejecutivo
               </h1>
               <p className="mt-3 max-w-3xl text-base text-white/78">
-                Filtros por estado, fecha, ciudad, provincia, courrier y medio
-                de pago.
+                Filtros por estado, fecha, ciudad, provincia, courrier y medio de pago.
               </p>
             </header>
 
@@ -251,54 +233,42 @@ export default function Dashboard() {
               <SalesChart data={metrics.salesDaily} />
 
               <div className="pg-card pg-pattern-soft rounded-3xl p-5">
-                <h3 className="pg-display text-2xl text-[var(--pg-deep)]">
-                  Resumen rápido
-                </h3>
+                <h3 className="pg-display text-2xl text-[var(--pg-deep)]">Resumen rápido</h3>
                 <p className="mt-1 text-sm text-[var(--pg-charcoal)]/58">
                   Lectura ejecutiva de los filtros aplicados.
                 </p>
 
                 <div className="mt-6 space-y-4">
                   <div className="rounded-2xl bg-[var(--pg-light)] p-4">
-                    <p className="text-sm text-[var(--pg-deep)]/70">
-                      Producto líder
-                    </p>
+                    <p className="text-sm text-[var(--pg-deep)]/70">Producto líder</p>
                     <p className="pg-display mt-1 text-xl text-[var(--pg-deep)]">
                       {metrics.topProducts?.[0]?.name || "Sin datos"}
                     </p>
                   </div>
 
                   <div className="rounded-2xl bg-[var(--pg-light)] p-4">
-                    <p className="text-sm text-[var(--pg-deep)]/70">
-                      Top clientes
-                    </p>
+                    <p className="text-sm text-[var(--pg-deep)]/70">Top clientes</p>
                     <p className="pg-display mt-1 text-xl text-[var(--pg-deep)]">
                       {metrics.topClients?.length || 0}
                     </p>
                   </div>
 
                   <div className="rounded-2xl bg-[var(--pg-light)] p-4">
-                    <p className="text-sm text-[var(--pg-deep)]/70">
-                      Categoría líder
-                    </p>
+                    <p className="text-sm text-[var(--pg-deep)]/70">Categoría líder</p>
                     <p className="pg-display mt-1 text-xl text-[var(--pg-deep)]">
                       {metrics.bestCategory?.name || "Sin categoría"}
                     </p>
                   </div>
 
                   <div className="rounded-2xl bg-[var(--pg-light)] p-4">
-                    <p className="text-sm text-[var(--pg-deep)]/70">
-                      Período top actual
-                    </p>
+                    <p className="text-sm text-[var(--pg-deep)]/70">Período top actual</p>
                     <p className="pg-display mt-1 text-xl text-[var(--pg-deep)]">
                       {formatMonthKey(metrics.currentMonthKey)}
                     </p>
                   </div>
 
                   <div className="rounded-2xl bg-[var(--pg-light)] p-4">
-                    <p className="text-sm text-[var(--pg-deep)]/70">
-                      Período top anterior
-                    </p>
+                    <p className="text-sm text-[var(--pg-deep)]/70">Período top anterior</p>
                     <p className="pg-display mt-1 text-xl text-[var(--pg-deep)]">
                       {formatMonthKey(metrics.previousMonthKey)}
                     </p>
@@ -317,15 +287,11 @@ export default function Dashboard() {
             <section className="mt-6 grid gap-6 xl:grid-cols-2">
               <ProductsTable
                 products={metrics.topProductsCurrentMonth || []}
-                title={`Top 10 del mes actual (${formatMonthKey(
-                  metrics.currentMonthKey
-                )})`}
+                title={`Top 10 del mes actual (${formatMonthKey(metrics.currentMonthKey)})`}
               />
               <ProductsTable
                 products={metrics.topProductsPreviousMonth || []}
-                title={`Top 10 del mes anterior (${formatMonthKey(
-                  metrics.previousMonthKey
-                )})`}
+                title={`Top 10 del mes anterior (${formatMonthKey(metrics.previousMonthKey)})`}
               />
             </section>
           </div>
