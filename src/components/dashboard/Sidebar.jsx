@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 const items = [
-  { label: "Resumen", icon: LayoutDashboard, active: true },
+  { label: "Resumen", icon: LayoutDashboard },
   { label: "Ventas", icon: ShoppingCart },
   { label: "Productos", icon: Package },
   { label: "Sucursales", icon: Building2 },
@@ -16,7 +16,7 @@ const items = [
   { label: "Plan de mejoras", icon: Lightbulb },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ activeSection, onSectionChange }) {
   return (
     <aside className="flex min-h-screen w-full flex-col bg-[var(--pg-deep)] text-white">
       <div className="border-b border-white/10 px-6 py-8">
@@ -30,11 +30,15 @@ export default function Sidebar() {
         <ul className="space-y-2">
           {items.map((item) => {
             const Icon = item.icon;
+            const isActive = activeSection === item.label;
+
             return (
               <li key={item.label}>
                 <button
+                  type="button"
+                  onClick={() => onSectionChange(item.label)}
                   className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm transition ${
-                    item.active
+                    isActive
                       ? "bg-[var(--pg-green)] text-white shadow-lg shadow-black/10"
                       : "text-white/84 hover:bg-white/8"
                   }`}
