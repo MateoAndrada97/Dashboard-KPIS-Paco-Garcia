@@ -6,6 +6,7 @@ import ProductsTable from "../components/dashboard/ProductsTable";
 import UploadVTEX from "../components/dashboard/UploadVTEX";
 import FiltersBar from "../components/dashboard/FiltersBar";
 import { mockData } from "../data/mockData";
+import { supabaseBrowser } from "../lib/supabaseBrowser";
 import {
   parseVTEXFile,
   adaptVTEXRows,
@@ -274,6 +275,51 @@ const SECTION_META = {
   },
 };
 
+function normalizeReport(raw) {
+  if (!raw) return null;
+
+  return {
+    ...raw,
+    report_name: raw.report_name || raw.file_name || raw.fileName || "Reporte sin nombre",
+    uploaded_at: raw.uploaded_at || raw.created_at || raw.updated_at || null,
+    is_active: Boolean(raw.is_active),
+    downloadUrl: raw.downloadUrl || raw.download_url || null,
+  };
+}
+
+function extractReport(payload) {
+  if (!payload) return null;
+  if (payload.report) return normalizeReport(payload.report);
+  return normalizeReport(payload);
+}
+
+function extractReports(payload) {
+  if (!payload) return [];
+  const reports = Array.isArray(payload) ? payload : payload.reports || [];
+  return reports.map(normalizeReport);
+}
+
+async function adaptReportFromDownloadUrl(downloadUrl, fileName = "reporte.csv") {
+  if (!downloadUrl) return null;
+
+  const response = await fetch(downloadUrl, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("No se pudo descargar el CSV activo desde Storage.");
+  }
+
+  const blob = await response.blob();
+  const file = new File([blob], fileName, {
+    type: blob.type || "text/csv",
+  });
+
+  const rows = await parseVTEXFile(file);
+  return adaptVTEXRows(rows);
+}
+
 function RankingTable({ title, rows, valueLabel = "Facturación" }) {
   return (
     <div className="pg-card rounded-3xl p-5">
@@ -345,7 +391,7 @@ export default function Dashboard() {
     }
 
     const payload = await response.json();
-    setReportHistory(payload?.reports || []);
+    setReportHistory(extractReports(payload));
   };
 
   useEffect(() => {
@@ -366,15 +412,36 @@ export default function Dashboard() {
 
         if (cancelled) return;
 
-        if (activePayload?.report?.report_data) {
-          setBaseData(activePayload.report.report_data);
-          setActiveReport(activePayload.report);
-        } else {
+        const normalizedActiveReport = extractReport(activePayload);
+        const normalizedHistory = extractReports(historyPayload);
+
+        setReportHistory(normalizedHistory);
+        setActiveReport(normalizedActiveReport);
+
+        if (!normalizedActiveReport) {
           setBaseData(null);
-          setActiveReport(null);
+          return;
         }
 
-        setReportHistory(historyPayload?.reports || []);
+        if (normalizedActiveReport.report_data) {
+          setBaseData(normalizedActiveReport.report_data);
+          return;
+        }
+
+        if (normalizedActiveReport.downloadUrl) {
+          const adapted = await adaptReportFromDownloadUrl(
+            normalizedActiveReport.downloadUrl,
+            normalizedActiveReport.report_name
+          );
+
+          if (!cancelled) {
+            setBaseData(adapted);
+          }
+
+          return;
+        }
+
+        setBaseData(null);
       } catch (error) {
         console.error("Error cargando reportes:", error);
       }
@@ -393,6 +460,21 @@ export default function Dashboard() {
     try {
       setIsUploading(true);
 
+      const safeName = file.name.replace(/\s+/g, "-");
+      const storagePath = `reports/${Date.now()}-${safeName}`;
+
+      const { error: uploadError } = await supabaseBrowser.storage
+        .from("dashboard-reports")
+        .upload(storagePath, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type || "text/csv",
+        });
+
+      if (uploadError) {
+        throw new Error(`Storage upload error: ${uploadError.message}`);
+      }
+
       const rows = await parseVTEXFile(file);
       const adapted = adaptVTEXRows(rows);
 
@@ -402,25 +484,31 @@ export default function Dashboard() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          action: "register-upload",
+          fileName: file.name,
           reportName: file.name,
           uploadedBy: "manual",
-          reportData: adapted,
+          storagePath,
+          fileSize: file.size,
+          mimeType: file.type || "text/csv",
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("No se pudo guardar el reporte en Supabase.");
-      }
-
       const payload = await response.json();
 
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo registrar el reporte.");
+      }
+
+      const normalizedReport = extractReport(payload);
+
       setBaseData(adapted);
-      setActiveReport(payload.report || null);
+      setActiveReport(normalizedReport);
       await loadReportHistory();
       setActiveSection("Resumen");
     } catch (error) {
-      console.error("Error procesando o guardando archivo VTEX:", error);
-      alert("No se pudo procesar o guardar el archivo CSV.");
+      console.error("ERROR FINAL handleFileChange:", error);
+      alert(error.message || "No se pudo procesar o guardar el archivo CSV.");
     } finally {
       setIsUploading(false);
     }
@@ -438,21 +526,34 @@ export default function Dashboard() {
         body: JSON.stringify({ reportId }),
       });
 
-      if (!response.ok) {
-        throw new Error("No se pudo reactivar el reporte.");
-      }
-
       const payload = await response.json();
 
-      if (payload?.report?.report_data) {
-        setBaseData(payload.report.report_data);
-        setActiveReport(payload.report);
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo reactivar el reporte.");
+      }
+
+      const normalizedReport = extractReport(payload);
+
+      setActiveReport(normalizedReport);
+
+      if (!normalizedReport) {
+        setBaseData(null);
+      } else if (normalizedReport.report_data) {
+        setBaseData(normalizedReport.report_data);
+      } else if (normalizedReport.downloadUrl) {
+        const adapted = await adaptReportFromDownloadUrl(
+          normalizedReport.downloadUrl,
+          normalizedReport.report_name
+        );
+        setBaseData(adapted);
+      } else {
+        setBaseData(null);
       }
 
       await loadReportHistory();
     } catch (error) {
       console.error("Error reactivando reporte:", error);
-      alert("No se pudo reactivar el reporte seleccionado.");
+      alert(error.message || "No se pudo reactivar el reporte seleccionado.");
     } finally {
       setIsSwitchingReport(false);
     }

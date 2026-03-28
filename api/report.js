@@ -19,6 +19,21 @@ function parseBody(req) {
   return req.body;
 }
 
+async function getSignedDownloadUrl(storagePath) {
+  if (!storagePath) return null;
+
+  const { data, error } = await supabase.storage
+    .from("dashboard-reports")
+    .createSignedUrl(storagePath, 60 * 60);
+
+  if (error) {
+    console.error("Error creando signed URL:", error);
+    return null;
+  }
+
+  return data?.signedUrl || null;
+}
+
 export default async function handler(req, res) {
   if (req.method === "GET") {
     try {
@@ -27,9 +42,9 @@ export default async function handler(req, res) {
       if (history === "1") {
         const { data, error } = await supabase
           .from("dashboard_reports")
-          .select("id, report_name, uploaded_by, uploaded_at, is_active")
+          .select("id, report_name, uploaded_by, uploaded_at, is_active, storage_path, file_size, mime_type")
           .order("uploaded_at", { ascending: false })
-          .limit(30);
+          .limit(50);
 
         if (error) {
           console.error("Error obteniendo historial:", error);
@@ -41,7 +56,7 @@ export default async function handler(req, res) {
 
       const { data, error } = await supabase
         .from("dashboard_reports")
-        .select("id, report_name, uploaded_by, report_data, uploaded_at, is_active")
+        .select("id, report_name, uploaded_by, uploaded_at, is_active, storage_path, file_size, mime_type, report_data")
         .eq("is_active", true)
         .order("uploaded_at", { ascending: false })
         .limit(1)
@@ -52,7 +67,20 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: "No se pudo obtener el reporte activo." });
       }
 
-      return res.status(200).json({ report: data || null });
+      if (!data) {
+        return res.status(200).json({ report: null });
+      }
+
+      const downloadUrl = data.storage_path
+        ? await getSignedDownloadUrl(data.storage_path)
+        : null;
+
+      return res.status(200).json({
+        report: {
+          ...data,
+          downloadUrl,
+        },
+      });
     } catch (error) {
       console.error("Error inesperado en GET /api/report:", error);
       return res.status(500).json({ error: "Error interno del servidor." });
@@ -62,41 +90,58 @@ export default async function handler(req, res) {
   if (req.method === "POST") {
     try {
       const body = parseBody(req);
-      const { reportName, uploadedBy, reportData } = body || {};
+      const { action } = body || {};
 
-      if (!reportData) {
-        return res.status(400).json({ error: "Falta reportData." });
-      }
+      if (action === "register-upload") {
+        const { reportName, uploadedBy, storagePath, fileSize, mimeType } = body || {};
 
-      const { error: deactivateError } = await supabase
-        .from("dashboard_reports")
-        .update({ is_active: false })
-        .eq("is_active", true);
+        if (!storagePath) {
+          return res.status(400).json({ error: "Falta storagePath." });
+        }
 
-      if (deactivateError) {
-        console.error("Error desactivando reporte anterior:", deactivateError);
-        return res.status(500).json({ error: "No se pudo desactivar el reporte anterior." });
-      }
+        const { error: deactivateError } = await supabase
+          .from("dashboard_reports")
+          .update({ is_active: false })
+          .eq("is_active", true);
 
-      const { data, error: insertError } = await supabase
-        .from("dashboard_reports")
-        .insert([
-          {
-            report_name: reportName || "Reporte VTEX",
-            uploaded_by: uploadedBy || "manual",
-            report_data: reportData,
-            is_active: true,
+        if (deactivateError) {
+          console.error("Error desactivando reporte anterior:", deactivateError);
+          return res.status(500).json({ error: "No se pudo desactivar el reporte anterior." });
+        }
+
+        const { data, error: insertError } = await supabase
+          .from("dashboard_reports")
+          .insert([
+            {
+              report_name: reportName || "Reporte VTEX",
+              uploaded_by: uploadedBy || "manual",
+              storage_path: storagePath,
+              file_size: fileSize || null,
+              mime_type: mimeType || "text/csv",
+              is_active: true,
+              report_data: null,
+            },
+          ])
+          .select("id, report_name, uploaded_by, uploaded_at, is_active, storage_path, file_size, mime_type")
+          .single();
+
+        if (insertError) {
+          console.error("Error registrando reporte:", insertError);
+          return res.status(500).json({ error: "No se pudo registrar el nuevo reporte." });
+        }
+
+        const downloadUrl = await getSignedDownloadUrl(data.storage_path);
+
+        return res.status(201).json({
+          ok: true,
+          report: {
+            ...data,
+            downloadUrl,
           },
-        ])
-        .select("id, report_name, uploaded_by, report_data, uploaded_at, is_active")
-        .single();
-
-      if (insertError) {
-        console.error("Error guardando nuevo reporte:", insertError);
-        return res.status(500).json({ error: "No se pudo guardar el nuevo reporte." });
+        });
       }
 
-      return res.status(201).json({ ok: true, report: data });
+      return res.status(400).json({ error: "Acción no válida." });
     } catch (error) {
       console.error("Error inesperado en POST /api/report:", error);
       return res.status(500).json({ error: "Error interno del servidor." });
@@ -126,7 +171,7 @@ export default async function handler(req, res) {
         .from("dashboard_reports")
         .update({ is_active: true })
         .eq("id", reportId)
-        .select("id, report_name, uploaded_by, report_data, uploaded_at, is_active")
+        .select("id, report_name, uploaded_by, uploaded_at, is_active, storage_path, file_size, mime_type, report_data")
         .single();
 
       if (activateError) {
@@ -134,7 +179,17 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: "No se pudo reactivar el reporte." });
       }
 
-      return res.status(200).json({ ok: true, report: data });
+      const downloadUrl = data.storage_path
+        ? await getSignedDownloadUrl(data.storage_path)
+        : null;
+
+      return res.status(200).json({
+        ok: true,
+        report: {
+          ...data,
+          downloadUrl,
+        },
+      });
     } catch (error) {
       console.error("Error inesperado en PATCH /api/report:", error);
       return res.status(500).json({ error: "Error interno del servidor." });
